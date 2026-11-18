@@ -1,13 +1,45 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <title>Frost Flashcard</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>Hello</h1>
-  <button id="ping">Click here</button>
-  <p id="result"></p>
+  <nav>
+    <button data-view="review" aria-selected="true">Review</button>
+    <button data-view="add" aria-selected="false">Add word</button>
+  </nav>
+
+  <section id="view-review">
+    <p id="remaining" class="meta"></p>
+    <button id="card" type="button">
+      <span id="card-front" dir="auto"></span>
+      <span id="card-reading" dir="auto"></span>
+      <span id="card-back" dir="auto"></span>
+    </button>
+    <p id="hint" class="meta">Click the card or press Space to show the answer</p>
+    <div id="grades" hidden>
+      <button data-grade="again">1 Again</button>
+      <button data-grade="hard">2 Hard</button>
+      <button data-grade="good">3 Good</button>
+      <button data-grade="easy">4 Easy</button>
+    </div>
+    <p id="done" class="meta" hidden>No cards due right now. Come back later!</p>
+  </section>
+
+  <section id="view-add" hidden>
+    <form id="add-form">
+      <label>Word <input name="front" dir="auto" autocomplete="off" required></label>
+      <label>Reading (optional) <input name="reading" dir="auto" autocomplete="off"></label>
+      <label>Meaning <input name="back" dir="auto" autocomplete="off" required></label>
+      <button type="submit">Add card</button>
+    </form>
+    <p id="card-count" class="meta"></p>
+  </section>
+
+  <p id="message" role="status"></p>
+
   <script type="module" src="app.js"></script>
 </body>
 </html>
