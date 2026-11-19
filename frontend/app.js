@@ -1,4 +1,4 @@
-import { callService as call } from './lib/api.js';
+import { callService as call, onEvent } from './lib/api.js';
 import { $, relativeDays, showError, showMessage } from './lib/helpers.js';
 
 const showView = (name) => {
@@ -112,5 +112,7 @@ $('add-form').addEventListener('submit', async (e) => {
     showError('AddCard', err);
   }
 });
+
+onEvent('navigate', (view) => showView(view === 'add' ? 'add' : 'review'));
 
 showView('review');

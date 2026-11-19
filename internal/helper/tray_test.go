@@ -44,9 +44,24 @@ func TestOnClickRunsAction(t *testing.T) {
 
 func TestSetupTrayBuildsWindowAndTray(t *testing.T) {
 	app := application.New(application.Options{Name: "test"})
-	SetupTray(app)
+	SetupTray(app, t.TempDir())
 
 	if _, ok := app.Window.GetByName("main"); !ok {
 		t.Error("SetupTray should create the main popup window")
+	}
+}
+
+type fakeAutostart struct{ enabled, disabled int }
+
+func (f *fakeAutostart) Enable() error  { f.enabled++; return nil }
+func (f *fakeAutostart) Disable() error { f.disabled++; return nil }
+
+func TestSetAutostart(t *testing.T) {
+	f := &fakeAutostart{}
+	_ = SetAutostart(f, true)
+	_ = SetAutostart(f, false)
+	_ = SetAutostart(f, false)
+	if f.enabled != 1 || f.disabled != 2 {
+		t.Errorf("got enable=%d disable=%d, want 1 and 2", f.enabled, f.disabled)
 	}
 }

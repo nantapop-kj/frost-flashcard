@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"path/filepath"
 
 	"github.com/nantapop-kj/frost-flashcard/assets"
 	"github.com/nantapop-kj/frost-flashcard/frontend"
@@ -44,7 +45,7 @@ func run() error {
 		Mac:         application.MacOptions{ActivationPolicy: application.ActivationPolicyAccessory},
 	})
 
-	helper.SetupTray(app)
+	helper.SetupTray(app, filepath.Dir(dataPath))
 
 	if err := runApp(app); err != nil {
 		return fmt.Errorf("app stopped unexpectedly: %w", err)

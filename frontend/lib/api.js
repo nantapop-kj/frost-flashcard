@@ -10,3 +10,5 @@ const service = (pkg, type) => {
 export const callService = service('internal/services', 'Service');
 
 export const errorCode = (err) => err?.cause?.code ?? 'unknown';
+
+export const onEvent = (name, cb) => wails.Events.On(name, (e) => cb(e.data));
