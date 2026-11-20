@@ -11,12 +11,12 @@ import (
 
 const NavigateEvent = "navigate"
 
-func SetupTray(app *application.App, dataDir string) {
+func SetupTray(app *application.App, dataDir string) *application.SystemTray {
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:            "main",
 		Title:           "Frost Flashcard",
 		Width:           360,
-		Height:          460,
+		Height:          520,
 		URL:             "/",
 		Hidden:          true,
 		Frameless:       true,
@@ -47,18 +47,12 @@ func SetupTray(app *application.App, dataDir string) {
 		log.Printf("cannot read launch-at-login state: %v", err)
 	}
 	menu.AddCheckbox("Launch at Login", enabled).OnClick(func(ctx *application.Context) {
-		item := ctx.ClickedMenuItem()
-		if err := SetAutostart(app.Autostart, item.Checked()); err != nil {
+		if err := ToggleAutostart(app.Autostart, ctx.ClickedMenuItem()); err != nil {
 			log.Printf("cannot change launch-at-login: %v", err)
-			item.SetChecked(!item.Checked())
 		}
 	})
 	menu.Add("Open Data Folder").OnClick(OnClick(func() {
-		if err := os.MkdirAll(dataDir, 0o755); err != nil {
-			log.Printf("cannot create data folder: %v", err)
-			return
-		}
-		if err := app.Browser.OpenFile(dataDir); err != nil {
+		if err := OpenDataFolder(dataDir, app.Browser.OpenFile); err != nil {
 			log.Printf("cannot open data folder: %v", err)
 		}
 	}))
@@ -69,6 +63,8 @@ func SetupTray(app *application.App, dataDir string) {
 	tray.SetMenu(menu)
 
 	tray.AttachWindow(window).WindowOffset(5)
+
+	return tray
 }
 
 type Autostarter interface {
@@ -81,6 +77,26 @@ func SetAutostart(a Autostarter, on bool) error {
 		return a.Enable()
 	}
 	return a.Disable()
+}
+
+type CheckItem interface {
+	Checked() bool
+	SetChecked(bool) *application.MenuItem
+}
+
+func ToggleAutostart(a Autostarter, item CheckItem) error {
+	err := SetAutostart(a, item.Checked())
+	if err != nil {
+		item.SetChecked(!item.Checked())
+	}
+	return err
+}
+
+func OpenDataFolder(dir string, open func(string) error) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	return open(dir)
 }
 
 type TrayIconSetter interface {
