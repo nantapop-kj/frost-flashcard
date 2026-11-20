@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"slices"
 	"strings"
 )
 
@@ -67,13 +68,16 @@ func (l *Library) DeleteDeck(id uint32) error {
 	if i < 0 {
 		return ErrNotFound
 	}
+
 	if len(l.Decks) == 1 {
 		return ErrLastDeck
 	}
+
 	l.Decks = append(l.Decks[:i], l.Decks[i+1:]...)
 	if l.Active == id {
 		l.Active = l.Decks[0].ID
 	}
+
 	return nil
 }
 
@@ -110,4 +114,14 @@ func cleanName(name string) (string, error) {
 	}
 
 	return name, nil
+}
+
+func (l *Library) Clone() *Library {
+	c := *l
+	c.Decks = make([]Deck, len(l.Decks))
+	for i, d := range l.Decks {
+		d.Cards = slices.Clone(d.Cards)
+		c.Decks[i] = d
+	}
+	return &c
 }

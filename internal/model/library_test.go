@@ -113,3 +113,17 @@ func TestActiveDeckRepairsDanglingActiveID(t *testing.T) {
 		t.Errorf("ActiveDeck = %d, Active = %d; want 1", d.ID, l.Active)
 	}
 }
+
+func TestCloneIsIndependent(t *testing.T) {
+	l := NewLibrary()
+	l.ActiveDeck().AddCard("a", "b", "", today)
+
+	c := l.Clone()
+	c.ActiveDeck().Cards[0].Front = "changed"
+	c.ActiveDeck().Name = "renamed"
+	c.CreateDeck("second")
+
+	if l.ActiveDeck().Cards[0].Front != "a" || l.ActiveDeck().Name != "" || len(l.Decks) != 1 {
+		t.Errorf("original changed through clone: %+v", l)
+	}
+}

@@ -36,16 +36,18 @@ func run() error {
 		return fmt.Errorf("cannot load flashcards; fix or move the file and restart: %w", err)
 	}
 
+	dialogs := &helper.Dialogs{}
 	app := application.New(application.Options{
 		Name:        "Frost Flashcard",
 		Description: "A flashcard app that lives in your macOS menu bar",
 		Icon:        assets.AppIcon,
-		Services:    []application.Service{application.NewService(services.New(lib, dataPath))},
+		Services:    []application.Service{application.NewService(services.New(lib, dataPath, dialogs))},
 		Assets:      application.AssetOptions{Handler: application.AssetFileServerFS(frontend.Assets)},
 		Mac:         application.MacOptions{ActivationPolicy: application.ActivationPolicyAccessory},
 	})
 
-	helper.SetupTray(app, filepath.Dir(dataPath))
+	dialogs.App = app
+	dialogs.Tray = helper.SetupTray(app, filepath.Dir(dataPath))
 
 	if err := runApp(app); err != nil {
 		return fmt.Errorf("app stopped unexpectedly: %w", err)

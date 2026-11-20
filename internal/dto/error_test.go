@@ -2,6 +2,7 @@ package dto
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 )
 
@@ -29,5 +30,29 @@ func TestIsCode(t *testing.T) {
 	}
 	if IsCode(&Error{Code: CodeBadInput}, CodeNotFound) {
 		t.Error("IsCode should compare codes")
+	}
+}
+
+func TestFromError(t *testing.T) {
+	errA := errors.New("a broke")
+	known := []Known{{errA, CodeLastDeck}}
+
+	if FromError(nil, CodeSaveFailed, known...) != nil {
+		t.Error("nil should stay nil")
+	}
+
+	orig := &Error{Code: CodeNotFound}
+	if got := FromError(orig, CodeSaveFailed, known...); got != orig {
+		t.Errorf("*Error should pass through, got %v", got)
+	}
+
+	wrapped := fmt.Errorf("deck 3: %w", errA)
+	got := FromError(wrapped, CodeSaveFailed, known...)
+	if !IsCode(got, CodeLastDeck) || got.(*Error).Detail != "deck 3: a broke" {
+		t.Errorf("known error = %#v", got)
+	}
+
+	if got := FromError(errors.New("disk"), CodeSaveFailed, known...); !IsCode(got, CodeSaveFailed) {
+		t.Errorf("unknown error = %#v, want fallback", got)
 	}
 }
