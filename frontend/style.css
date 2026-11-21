@@ -188,6 +188,14 @@ header {
   z-index: 5;
 }
 
+.close-window {
+  display: none;
+}
+
+:root[data-platform="windows"] .close-window {
+  display: flex;
+}
+
 .deck-button {
   flex: 1;
   min-width: 0;

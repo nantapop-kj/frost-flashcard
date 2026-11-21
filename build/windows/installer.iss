@@ -23,13 +23,20 @@ UninstallDisplayIcon={app}\{#AppExe}
 UninstallDisplayName={#AppName}
 Compression=lzma2
 SolidCompression=yes
-WizardStyle=modern
+WizardStyle=modern dark
+WizardBackImageFile=wizard-bg-100.png,wizard-bg-150.png,wizard-bg-200.png
+WizardBackColor=#12121a
+WizardImageFile=
+WizardSmallImageFile=..\..\assets\icons\appicon.png
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 CloseApplications=yes
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
+
+[Messages]
+FinishedLabel=Setup has installed [name] on your computer.%n%n[name] runs in the system tray, not in a window. If you cannot see its icon, click ^ on the taskbar, then drag the icon onto the taskbar to keep it visible.
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked

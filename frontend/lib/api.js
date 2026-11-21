@@ -13,4 +13,6 @@ export const callSystem = service('internal/services', 'System');
 
 export const errorCode = (err) => err?.cause?.code ?? 'unknown';
 
+export const hideWindow = () => wails.Window.Hide();
+
 export const onEvent = (name, cb) => wails.Events.On(name, (e) => cb(e.data));
