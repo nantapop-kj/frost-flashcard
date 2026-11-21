@@ -65,7 +65,8 @@ SETUP="build/bin/Frost-Flashcard-Setup-$APP_VERSION.exe"
 rm -f "$SETUP"
 ISCC="$(find_iscc || true)"
 if [[ -n "$ISCC" ]]; then
-  "$ISCC" /Q "/DAppVersion=$APP_VERSION" "$(win_path build/windows/installer.iss)"
+  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' \
+    "$ISCC" /Q "/DAppVersion=$APP_VERSION" "$(win_path build/windows/installer.iss)"
 elif command -v docker >/dev/null 2>&1; then
   if [[ "$(uname -m)" == "arm64" || "$(uname -m)" == "aarch64" ]] && [[ "${ALLOW_EMULATED_ISCC:-}" != "1" ]]; then
     echo "Refusing to build the installer with Docker on $(uname -m): Wine under emulation writes a corrupt setup file." >&2
