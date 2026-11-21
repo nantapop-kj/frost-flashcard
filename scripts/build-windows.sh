@@ -61,10 +61,17 @@ win_path() {
 }
 
 echo "▶ build installer, version $APP_VERSION"
+SETUP="build/bin/Frost-Flashcard-Setup-$APP_VERSION.exe"
+rm -f "$SETUP"
 ISCC="$(find_iscc || true)"
 if [[ -n "$ISCC" ]]; then
   "$ISCC" /Q "/DAppVersion=$APP_VERSION" "$(win_path build/windows/installer.iss)"
 elif command -v docker >/dev/null 2>&1; then
+  if [[ "$(uname -m)" == "arm64" || "$(uname -m)" == "aarch64" ]] && [[ "${ALLOW_EMULATED_ISCC:-}" != "1" ]]; then
+    echo "Refusing to build the installer with Docker on $(uname -m): Wine under emulation writes a corrupt setup file." >&2
+    echo "Build it on Windows, or push a tag so .github/workflows/release.yml builds it." >&2
+    exit 1
+  fi
   docker run --rm -v "$PWD:/work" -w /work/build/windows amake/innosetup \
     /Q "/DAppVersion=$APP_VERSION" installer.iss
 else
@@ -73,4 +80,13 @@ else
   exit 1
 fi
 
-echo "✅ done: build/bin/Frost-Flashcard-Setup-$APP_VERSION.exe"
+[[ -f "$SETUP" ]] || { echo "Inno Setup did not write $SETUP" >&2; exit 1; }
+
+setup_size=$(wc -c <"$SETUP")
+exe_size=$(wc -c <build/bin/frost-flashcard.exe)
+if (( setup_size * 5 < exe_size )); then
+  echo "$SETUP is only $setup_size bytes for a $exe_size byte exe, so it is truncated" >&2
+  exit 1
+fi
+
+echo "✅ done: $SETUP"
