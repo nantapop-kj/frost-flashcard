@@ -1,5 +1,6 @@
 /bin/
 /build/bin/
+/build/tools/
 /build/**/*.app
 *.syso
 

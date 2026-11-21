@@ -31,7 +31,15 @@ echo "✅ done: build/bin/frost-flashcard.exe"
 APP_VERSION="${VERSION#v}"
 [[ "$APP_VERSION" =~ ^[0-9]+(\.[0-9]+)*$ ]] || APP_VERSION="0.0.0"
 
+INNO_VERSION="6.7.3"
+INNO_SHA256="9c73c3bae7ed48d44112a0f48e66742c00090bdb5bef71d9d3c056c66e97b732"
+INNO_DIR="build/tools/innosetup-$INNO_VERSION"
+
 find_iscc() {
+  if [[ -x "$INNO_DIR/ISCC.exe" ]]; then
+    echo "$INNO_DIR/ISCC.exe"
+    return
+  fi
   if command -v iscc >/dev/null 2>&1; then
     command -v iscc
     return
@@ -60,10 +68,32 @@ win_path() {
   fi
 }
 
+# Unpack a portable Inno Setup into build/tools, so nothing is installed on Windows.
+fetch_portable_iscc() {
+  command -v wslpath >/dev/null 2>&1 || command -v cygpath >/dev/null 2>&1 || return 0
+  command -v curl >/dev/null 2>&1 || return 0
+  echo "▶ download portable Inno Setup $INNO_VERSION into $INNO_DIR" >&2
+  mkdir -p build/tools
+  local setup="build/tools/innosetup-$INNO_VERSION.exe"
+  curl -fsSL -o "$setup" \
+    "https://github.com/jrsoftware/issrc/releases/download/is-${INNO_VERSION//./_}/innosetup-$INNO_VERSION.exe"
+  if ! echo "$INNO_SHA256  $setup" | sha256sum -c --status; then
+    echo "Inno Setup download failed its checksum" >&2
+    rm -f "$setup"
+    return 1
+  fi
+  mkdir -p "$INNO_DIR"
+  "$setup" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CURRENTUSER /PORTABLE=1 /NOICONS \
+    "/DIR=$(win_path "$INNO_DIR")"
+  rm -f "$setup"
+  [[ -x "$INNO_DIR/ISCC.exe" ]] && echo "$INNO_DIR/ISCC.exe"
+}
+
 echo "▶ build installer, version $APP_VERSION"
 SETUP="build/bin/Frost-Flashcard-Setup-$APP_VERSION.exe"
 rm -f "$SETUP"
 ISCC="$(find_iscc || true)"
+[[ -n "$ISCC" ]] || ISCC="$(fetch_portable_iscc || true)"
 if [[ -n "$ISCC" ]]; then
   MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' \
     "$ISCC" /Q "/DAppVersion=$APP_VERSION" "$(win_path build/windows/installer.iss)"
