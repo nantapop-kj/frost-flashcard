@@ -2,7 +2,7 @@ name: release
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
   workflow_dispatch:
     inputs:
       tag:
@@ -12,19 +12,53 @@ on:
 permissions:
   contents: write
 
-env:
-  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+      ref: ${{ steps.v.outputs.ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: v
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          if [[ -n "$INPUT_TAG" ]]; then
+            git rev-parse -q --verify "refs/tags/$INPUT_TAG" >/dev/null || { echo "tag $INPUT_TAG not found" >&2; exit 1; }
+            tag="$INPUT_TAG"
+            ref="$INPUT_TAG"
+          else
+            latest=$(git tag -l 'v*' --sort=-v:refname | head -1)
+            if [[ "$latest" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+              tag="v${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((BASH_REMATCH[3] + 1))"
+            else
+              tag="v0.0.1"
+            fi
+            ref="$GITHUB_SHA"
+          fi
+          echo "version $tag from $ref"
+          echo "tag=$tag" >>"$GITHUB_OUTPUT"
+          echo "ref=$ref" >>"$GITHUB_OUTPUT"
+
   windows:
+    needs: version
     runs-on: windows-latest
     defaults:
       run:
         shell: bash
+    env:
+      TAG: ${{ needs.version.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ env.TAG }}
+          ref: ${{ needs.version.outputs.ref }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -40,11 +74,14 @@ jobs:
           if-no-files-found: error
 
   macos:
+    needs: version
     runs-on: macos-latest
+    env:
+      TAG: ${{ needs.version.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ env.TAG }}
+          ref: ${{ needs.version.outputs.ref }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -57,11 +94,13 @@ jobs:
           if-no-files-found: error
 
   publish:
-    needs: [windows, macos]
+    needs: [version, windows, macos]
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
+      TAG: ${{ needs.version.outputs.tag }}
+      REF: ${{ needs.version.outputs.ref }}
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -70,5 +109,8 @@ jobs:
       - name: Upload to the GitHub release
         run: |
           ls -l dist
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --generate-notes
-          gh release upload "$TAG" dist/* --clobber
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --title "$TAG" --target "$REF" --generate-notes
+          fi

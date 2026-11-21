@@ -69,7 +69,7 @@ if [[ -n "$ISCC" ]]; then
 elif command -v docker >/dev/null 2>&1; then
   if [[ "$(uname -m)" == "arm64" || "$(uname -m)" == "aarch64" ]] && [[ "${ALLOW_EMULATED_ISCC:-}" != "1" ]]; then
     echo "Refusing to build the installer with Docker on $(uname -m): Wine under emulation writes a corrupt setup file." >&2
-    echo "Build it on Windows, or push a tag so .github/workflows/release.yml builds it." >&2
+    echo "Build it on Windows, or merge into main so .github/workflows/release.yml builds it." >&2
     exit 1
   fi
   docker run --rm -v "$PWD:/work" -w /work/build/windows amake/innosetup \
