@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Frost Flashcard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <div class="ambient" aria-hidden="true"><i></i><i></i><i></i></div>
+
+  <div id="progress" class="progress">
+    <div id="progress-bar"></div>
+  </div>
+
+  <header>
+    <div class="topbar">
+      <button id="deck-button" class="glass pill deck-button" aria-haspopup="true" aria-expanded="false">
+        <span id="deck-name" dir="auto"></span>
+        <span id="deck-count" class="count"></span>
+        <svg class="chev" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+
+      <button class="glass round tab-link" data-view="settings" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6">
+          <circle cx="12" cy="12" r="3" />
+          <path
+            d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+        </svg>
+      </button>
+
+      <button id="close-window" class="glass round close-window" title="Close" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"
+          stroke-linecap="round">
+          <path d="M6 6l12 12M18 6 6 18" />
+        </svg>
+      </button>
+
+      <div id="deck-menu" class="glass menu hidden" role="menu">
+        <ul id="deck-options"></ul>
+        <form id="new-deck-form" class="new-deck">
+          <input id="new-deck-name" class="glass" dir="auto" autocomplete="off" placeholder="New deck name">
+          <button type="submit" class="mini">Create</button>
+        </form>
+      </div>
+    </div>
+
+    <nav class="glass pill tabs">
+      <button class="tab-link active" data-view="review">Review</button>
+      <button class="tab-link" data-view="add">Add</button>
+      <button class="tab-link" data-view="list">Words</button>
+    </nav>
+  </header>
+
+  <section id="view-review" class="view active">
+    <div class="meta-row">
+      <p id="remaining" class="meta"></p>
+      <button id="filter-badge" class="badge hidden tab-link" data-view="settings"></button>
+    </div>
+
+    <div id="card" class="glass card" role="button" tabindex="0">
+      <div class="front-group">
+        <div id="card-front" class="front" dir="auto"></div>
+        <div id="card-reading" class="reading" dir="auto"></div>
+      </div>
+      <div class="rule"></div>
+      <div id="card-back" class="back" dir="auto"></div>
+    </div>
+
+    <p id="hint" class="meta center hint">Click the card or press Space to show the answer</p>
+
+    <div id="grades" class="grades hidden">
+      <button class="glass" data-grade="again"><span>Again</span><kbd>1</kbd></button>
+      <button class="glass" data-grade="hard"><span>Hard</span><kbd>2</kbd></button>
+      <button class="glass" data-grade="good"><span>Good</span><kbd>3</kbd></button>
+      <button class="glass" data-grade="easy"><span>Easy</span><kbd>4</kbd></button>
+    </div>
+
+    <div id="done" class="glass done hidden">
+      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.4">
+        <circle cx="12" cy="12" r="10" />
+        <path d="m8 12.5 2.5 2.5L16 9.5" />
+      </svg>
+      <p id="done-title" class="title"></p>
+      <p id="done-sub" class="meta"></p>
+    </div>
+  </section>
+
+  <section id="view-add" class="view">
+    <form id="add-form">
+      <label>
+        <span>Word</span>
+        <input id="front" class="glass" dir="auto" autocomplete="off" placeholder="e.g. 猫">
+      </label>
+      <label>
+        <span>Reading (optional)</span>
+        <input id="reading" class="glass" dir="auto" autocomplete="off" placeholder="e.g. ねこ">
+      </label>
+      <label>
+        <span>Meaning</span>
+        <input id="back" class="glass" dir="auto" autocomplete="off" placeholder="e.g. cat">
+      </label>
+      <button type="submit" class="solid">Add card</button>
+    </form>
+
+    <div class="spacer"></div>
+
+    <button id="import" class="link">Import from Excel / CSV…</button>
+    <p class="meta small">Column A = word, B = meaning, C = reading (optional). Header rows, blank rows and words
+      already in the deck are skipped.</p>
+  </section>
+
+  <section id="view-list" class="view">
+    <div id="chips" class="chips"></div>
+    <input id="search" class="glass search" type="search" dir="auto" autocomplete="off" placeholder="Search words">
+    <ul id="card-list" class="glass card-list"></ul>
+  </section>
+
+  <section id="view-settings" class="view settings">
+    <div class="field">
+      <span class="label">Appearance</span>
+      <div id="appearance" class="glass pill segmented">
+        <button data-value="system">System</button>
+        <button data-value="light">Light</button>
+        <button data-value="dark">Dark</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <span class="label">Show reading</span>
+      <div id="reading-mode" class="glass pill segmented">
+        <button data-value="answer">With the answer</button>
+        <button data-value="front">On the front</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <span class="label">Cards to review</span>
+      <div id="filter" class="glass card-list options" role="radiogroup">
+        <button role="radio" data-value="all">All cards</button>
+        <button role="radio" data-value="due" data-status="due">Due today</button>
+        <button role="radio" data-value="new" data-status="new">New</button>
+        <button role="radio" data-value="learning" data-status="learning">Learning</button>
+        <button role="radio" data-value="known" data-status="known">Known</button>
+      </div>
+      <span class="meta small">Cards are shuffled every time a review starts.</span>
+    </div>
+
+    <div class="field">
+      <span class="label">Decks</span>
+      <ul id="deck-manage" class="glass card-list decks"></ul>
+      <span class="meta small">Click a name to rename it.</span>
+    </div>
+
+    <div class="field">
+      <span class="label">App</span>
+      <div class="glass card-list options app-actions">
+        <button id="install-app" class="hidden">Move to Applications folder</button>
+        <button id="export">Export this deck to CSV…</button>
+        <button id="uninstall" class="danger">Uninstall…</button>
+      </div>
+      <span id="uninstall-help" class="meta small"></span>
+      <span id="quit-help" class="meta small">To quit, right-click the menu bar icon and choose Quit.</span>
+      <span id="version" class="meta small center"></span>
+    </div>
+  </section>
+
+  <div id="confirm" class="modal hidden" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title"
+    aria-describedby="confirm-text">
+    <div class="glass modal-box">
+      <p id="confirm-title" class="title"></p>
+      <p id="confirm-text" class="meta"></p>
+      <div class="modal-actions">
+        <button id="confirm-cancel" class="mini ghost">Cancel</button>
+        <button id="confirm-ok" class="mini danger-solid"></button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+
+</html>
