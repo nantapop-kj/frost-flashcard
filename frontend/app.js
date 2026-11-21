@@ -1,50 +1,91 @@
-import { callService as call, onEvent } from './lib/api.js';
-import { $, confirmClick, el, plural, relativeDays, showError, showMessage } from './lib/helpers.js';
+import { callService as call, callSystem, errorCode, onEvent } from './lib/api.js';
+import {
+  $,
+  confirmClick,
+  confirmDialog,
+  daysUntil,
+  el,
+  isComposing,
+  plural,
+  prefs,
+  relativeDays,
+  requireFilled,
+  setInvalid,
+  showError,
+  toast,
+} from './lib/helpers.js';
 
-const prefs = {
-  get(key, fallback) {
-    try {
-      return localStorage.getItem(`frost-flashcard.${key}`) ?? fallback;
-    } catch {
-      return fallback;
-    }
-  },
-  set(key, value) {
-    try {
-      localStorage.setItem(`frost-flashcard.${key}`, value);
-    } catch {}
-  },
+const ICON_X =
+  '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+
+const FilterNames = {
+  all: 'All cards',
+  due: 'Due today',
+  new: 'New',
+  learning: 'Learning',
+  known: 'Known',
 };
 
-const isComposing = (e) => e.isComposing || e.keyCode === 229;
-const Views = ['review', 'add', 'words', 'decks'];
-let currentView = 'review';
+const deckName = (deck) => deck.name || 'My deck';
+
+const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+const applyAppearance = (value) => {
+  const mode = value === 'system' ? (darkQuery.matches ? 'dark' : 'light') : value;
+  document.documentElement.dataset.mode = mode;
+  document.querySelectorAll('#appearance button').forEach((b) =>
+    b.classList.toggle('active', b.dataset.value === value)
+  );
+};
+
+document.querySelectorAll('#appearance button').forEach((btn) =>
+  btn.addEventListener('click', () => {
+    prefs.set('appearance', btn.dataset.value);
+    applyAppearance(btn.dataset.value);
+  })
+);
+
+darkQuery.addEventListener('change', () => {
+  if (prefs.get('appearance', 'system') === 'system') applyAppearance('system');
+});
+
+const applyReadingMode = (mode) => {
+  $('card').dataset.reading = mode;
+  document.querySelectorAll('#reading-mode button').forEach((b) =>
+    b.classList.toggle('active', b.dataset.value === mode)
+  );
+};
+
+document.querySelectorAll('#reading-mode button').forEach((btn) =>
+  btn.addEventListener('click', () => {
+    prefs.set('reading', btn.dataset.value);
+    applyReadingMode(btn.dataset.value);
+  })
+);
 
 const showView = (name) => {
-  currentView = name;
-  for (const v of Views) $(`view-${v}`).hidden = v !== name;
-  document.querySelectorAll('nav button').forEach((b) =>
-    b.setAttribute('aria-selected', String(b.dataset.view === name))
+  document.querySelectorAll('.tab-link').forEach((b) =>
+    b.classList.toggle('active', b.dataset.view === name)
   );
-  refreshView();
+  document.querySelectorAll('.view').forEach((v) =>
+    v.classList.toggle('active', v.id === `view-${name}`)
+  );
+  $('progress').classList.toggle('hidden', name !== 'review');
+  closeDeckMenu();
+  document.querySelectorAll('input.invalid').forEach((input) => setInvalid(input, false));
+
+  if (name === 'list') loadList();
+  if (name === 'settings') loadAppInfo();
+  if (name === 'add') $('front').focus();
 };
 
-const refreshView = () => {
-  if (currentView === 'review') startSession();
-  if (currentView === 'add') {
-    refreshCount();
-    document.querySelector('#add-form [name=front]').focus();
-  }
-  if (currentView === 'words') loadWords();
-  if (currentView === 'decks') renderDeckList();
-};
+const currentView = () => document.querySelector('.view.active').id.replace('view-', '');
 
-document.querySelectorAll('nav button').forEach((b) =>
-  b.addEventListener('click', () => showView(b.dataset.view))
+document.querySelectorAll('.tab-link').forEach((btn) =>
+  btn.addEventListener('click', () => showView(btn.dataset.view))
 );
 
 let decks = { active: 0, decks: [] };
-const deckName = (d) => d.name || 'My deck';
 
 const refreshDecks = async () => {
   try {
@@ -53,59 +94,125 @@ const refreshDecks = async () => {
     showError('ListDecks', err);
     return;
   }
-  const select = $('deck-select');
-  select.replaceChildren(
-    ...decks.decks.map((d) => {
-      const opt = el('option', '', `${deckName(d)} (${d.due} due / ${d.count})`);
-      opt.value = d.id;
-      return opt;
-    })
-  );
-  select.value = decks.active;
-  if (currentView === 'decks') renderDeckList();
+  renderDecks();
 };
 
-$('deck-select').addEventListener('change', async (e) => {
+const renderDecks = () => {
+  const active = decks.decks.find((d) => d.id === decks.active);
+  if (!active) return;
+
+  $('deck-name').textContent = deckName(active);
+  $('deck-count').textContent = active.due
+    ? `${active.due} due · ${plural(active.count, 'card')}`
+    : plural(active.count, 'card');
+
+  $('deck-options').replaceChildren(
+    ...decks.decks.map((deck) => {
+      const btn = el('button');
+      btn.setAttribute('role', 'menuitem');
+      const name = el('span', 'name', deckName(deck));
+      name.dir = 'auto';
+      btn.append(
+        el('span', 'check', deck.id === decks.active ? '✓' : ''),
+        name,
+        el('span', 'count', plural(deck.count, 'card'))
+      );
+      btn.addEventListener('click', () => switchDeck(deck.id));
+      const li = el('li');
+      li.append(btn);
+      return li;
+    })
+  );
+
+  renderDeckManager();
+};
+
+const switchDeck = async (id) => {
+  closeDeckMenu();
+  if (id === decks.active) return;
   try {
-    await call('SetActiveDeck', Number(e.target.value));
+    await call('SetActiveDeck', id);
+    await refreshDecks();
+    await startSession();
+    if (currentView() === 'list') loadList();
   } catch (err) {
     showError('SetActiveDeck', err);
   }
-  await refreshDecks();
-  refreshView();
+};
+
+const openDeckMenu = () => {
+  $('deck-menu').classList.remove('hidden');
+  $('deck-button').setAttribute('aria-expanded', 'true');
+};
+
+const closeDeckMenu = () => {
+  $('deck-menu').classList.add('hidden');
+  $('deck-button').setAttribute('aria-expanded', 'false');
+};
+
+$('deck-button').addEventListener('click', (e) => {
+  e.stopPropagation();
+  $('deck-menu').classList.contains('hidden') ? openDeckMenu() : closeDeckMenu();
+});
+$('deck-menu').addEventListener('click', (e) => e.stopPropagation());
+document.addEventListener('click', closeDeckMenu);
+
+$('new-deck-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = $('new-deck-name').value.trim();
+  try {
+    await call('CreateDeck', name);
+    $('new-deck-name').value = '';
+    closeDeckMenu();
+    toast(`Created "${name}".`);
+    await refreshDecks();
+    await startSession();
+    showView('add');
+  } catch (err) {
+    showError('CreateDeck', err);
+  }
 });
 
-const renderDeckList = () => {
-  $('deck-list').replaceChildren(
-    ...decks.decks.map((d) => {
-      const li = el('li', d.id === decks.active ? 'active' : '');
-      const name = el('button', 'name link', deckName(d));
+const renderDeckManager = () => {
+  $('deck-manage').replaceChildren(
+    ...decks.decks.map((deck) => {
+      const li = el('li', deck.id === decks.active ? 'active' : '');
+
+      const name = el('button', 'name', deckName(deck));
       name.dir = 'auto';
-      name.title = 'Click to rename';
-      name.addEventListener('click', () => startRename(name, d));
+      name.title = 'Rename';
+      name.addEventListener('click', () => startRename(name, deck));
 
-      const del = el('button', 'danger', 'Delete');
-      confirmClick(del, async () => {
-        try {
-          await call('DeleteDeck', d.id);
-          showMessage(`Deleted deck "${deckName(d)}".`);
-        } catch (err) {
-          showError('DeleteDeck', err);
-        }
-        await refreshDecks();
-      });
+      const del = el('button', 'del');
+      del.innerHTML = ICON_X;
+      del.title = 'Delete deck';
+      del.setAttribute('aria-label', del.title);
+      confirmClick(
+        del,
+        async () => {
+          try {
+            await call('DeleteDeck', deck.id);
+            toast(`Deleted "${deckName(deck)}".`);
+            await refreshDecks();
+            await startSession();
+          } catch (err) {
+            showError('DeleteDeck', err);
+          }
+        },
+        'Click again to delete this deck and all its cards.'
+      );
 
-      li.append(name, el('span', 'meta', plural(d.count, 'card')), del);
+      li.append(name, el('span', 'count', plural(deck.count, 'card')), del);
       return li;
     })
   );
 };
 
-const startRename = (button, deck) => {
-  const input = el('input');
+const startRename = (nameButton, deck) => {
+  const input = el('input', 'rename');
   input.value = deck.name;
   input.dir = 'auto';
-  button.replaceWith(input);
+  nameButton.replaceWith(input);
   input.focus();
   input.select();
 
@@ -123,171 +230,157 @@ const startRename = (button, deck) => {
     }
     await refreshDecks();
   };
+
   input.addEventListener('keydown', (e) => {
     if (isComposing(e)) return;
     if (e.key === 'Enter') finish(true);
-    if (e.key === 'Escape') {
-      e.stopPropagation();
-      finish(false);
-    }
+    if (e.key === 'Escape') finish(false);
   });
   input.addEventListener('blur', () => finish(true));
 };
 
-$('new-deck-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const form = e.currentTarget;
-  const name = form.elements.name.value;
-  try {
-    await call('CreateDeck', name);
-    form.reset();
-    showMessage(`Created "${name.trim()}". Add some words to it.`);
-    await refreshDecks();
-    showView('add');
-  } catch (err) {
-    showError('CreateDeck', err);
-  }
-});
-
-$('export').addEventListener('click', async () => {
-  try {
-    const report = await call('ExportCSV', 'Export deck as CSV');
-    if (report) showMessage(`Exported ${plural(report.count, 'card')}.`);
-  } catch (err) {
-    showError('ExportCSV', err);
-  }
-});
-
-const session = { cards: [], pos: 0, flipped: false, busy: false };
+let session = { queue: [], pos: 0 };
 let filter = prefs.get('filter', 'due');
-$('filter').value = filter;
-
-$('filter').addEventListener('change', (e) => {
-  filter = e.target.value;
-  prefs.set('filter', filter);
-  startSession();
-});
 
 const startSession = async () => {
   try {
-    session.cards = await call('StartSession', filter);
+    session = { queue: await call('StartSession', filter), pos: 0 };
   } catch (err) {
-    session.cards = [];
+    session = { queue: [], pos: 0 };
     showError('StartSession', err);
   }
-  session.pos = 0;
-  renderCard();
-  refreshStats();
+  renderSession();
 };
 
-const refreshStats = async () => {
-  try {
-    const s = await call('Stats');
-    $('stats').textContent =
-      `${s.due_today} due · ${s.new_cards} new · ${s.learning} learning · ${s.known} known · ${s.total} total`;
-  } catch (err) {
-    showError('Stats', err);
-  }
+const currentCard = () => session.queue[session.pos];
+
+const setText = (node, text, longAt, shortAt = 0) => {
+  const length = [...text].length;
+  node.textContent = text;
+  node.classList.toggle('long', length > longAt);
+  node.classList.toggle('short', length <= shortAt);
 };
 
-const renderCard = () => {
-  const card = session.cards[session.pos];
-  session.flipped = false;
+const renderSession = () => {
+  const card = currentCard();
+  const total = session.queue.length;
+  const hasCard = card !== undefined;
 
-  $('card').hidden = !card;
-  $('hint').hidden = !card;
-  $('done').hidden = !!card;
-  $('grades').hidden = true;
+  $('card').classList.toggle('hidden', !hasCard);
+  $('hint').classList.toggle('hidden', !hasCard);
+  $('done').classList.toggle('hidden', hasCard);
+  $('grades').classList.add('hidden');
   $('card').classList.remove('flipped');
-  $('remaining').textContent = card ? `${session.cards.length - session.pos} left` : '';
-  if (!card) {
-    const emptyFromStart = session.cards.length === 0;
-    $('done').textContent =
-      filter === 'due' || !emptyFromStart
-        ? 'No cards due right now. Come back later!'
-        : 'No cards match this filter.';
+
+  const badge = $('filter-badge');
+  badge.classList.toggle('hidden', filter === 'due');
+  badge.textContent = FilterNames[filter];
+  badge.dataset.status = filter;
+
+  $('progress-bar').style.width = total ? `${(session.pos / total) * 100}%` : '0';
+
+  if (!hasCard) {
+    $('remaining').textContent = '';
+    const emptyByFilter = total === 0 && filter !== 'due';
+    $('done-title').textContent = emptyByFilter ? 'No cards match this filter' : 'All done for now';
+    $('done-sub').textContent = emptyByFilter
+      ? 'Choose another filter in Settings.'
+      : 'Come back later, or add some new words.';
     return;
   }
 
-  $('card-front').textContent = card.front;
+  $('remaining').textContent = `${total - session.pos} left`;
+  setText($('card-front'), card.front, 16, 3);
   $('card-reading').textContent = card.reading;
-  $('card-back').textContent = card.back;
+  setText($('card-back'), card.back, 60);
 };
 
 const flipCard = () => {
-  if (session.flipped || !session.cards[session.pos]) return;
-  session.flipped = true;
+  if (!currentCard()) return;
   $('card').classList.add('flipped');
-  $('hint').hidden = true;
-  $('grades').hidden = false;
+  $('hint').classList.add('hidden');
+  $('grades').classList.remove('hidden');
 };
 
+let grading = false;
+
 const gradeCard = async (grade) => {
-  const card = session.cards[session.pos];
-  if (!card || !session.flipped || session.busy) return;
-  session.busy = true;
+  const card = currentCard();
+  if (!card || grading) return;
+  grading = true;
   try {
     const days = await call('GradeCard', card.id, grade);
-    showMessage(`You'll see this card again ${relativeDays(days)}.`);
-    session.pos++;
-    renderCard();
-    refreshStats();
-    refreshDecks();
+    toast(`You'll see this card again ${relativeDays(days)}.`);
   } catch (err) {
     showError('GradeCard', err);
-    if (err?.cause?.code === 'not_found') {
-      session.pos++;
-      renderCard();
+    if (errorCode(err) !== 'not_found') {
+      grading = false;
+      return;
     }
-  } finally {
-    session.busy = false;
   }
+  session.pos += 1;
+  renderSession();
+  refreshDecks();
+  grading = false;
 };
 
 $('card').addEventListener('click', flipCard);
-document.querySelectorAll('#grades button').forEach((b) =>
-  b.addEventListener('click', () => gradeCard(b.dataset.grade))
+document.querySelectorAll('#grades button').forEach((btn) =>
+  btn.addEventListener('click', () => gradeCard(btn.dataset.grade))
+);
+
+const renderFilterOptions = () => {
+  document.querySelectorAll('#filter button').forEach((b) => {
+    const on = b.dataset.value === filter;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-checked', String(on));
+  });
+};
+
+document.querySelectorAll('#filter button').forEach((btn) =>
+  btn.addEventListener('click', () => {
+    filter = btn.dataset.value;
+    prefs.set('filter', filter);
+    renderFilterOptions();
+    startSession();
+  })
 );
 
 const GradeKeys = { Digit1: 'again', Digit2: 'hard', Digit3: 'good', Digit4: 'easy' };
 
 document.addEventListener('keydown', (e) => {
-  if (currentView !== 'review' || ['INPUT', 'SELECT'].includes(e.target.tagName)) return;
+  if (e.key === 'Escape') closeDeckMenu();
+  if (currentView() !== 'review' || ['INPUT', 'SELECT'].includes(e.target.tagName)) return;
   if (e.code === 'Space' || e.code === 'Enter') {
     e.preventDefault();
     flipCard();
-  } else if (GradeKeys[e.code]) {
+    return;
+  }
+  if (GradeKeys[e.code] && $('card').classList.contains('flipped')) {
     gradeCard(GradeKeys[e.code]);
   }
 });
 
-
-const refreshCount = async () => {
-  try {
-    const s = await call('Stats');
-    $('card-count').textContent = `${plural(s.total, 'card')} in this deck`;
-  } catch (err) {
-    showError('Stats', err);
-  }
-};
-
-$('add-form').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && isComposing(e)) e.preventDefault();
-});
+for (const form of [$('add-form'), $('new-deck-form')]) {
+  form.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && isComposing(e)) e.preventDefault();
+  });
+}
 
 $('add-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const form = e.currentTarget;
-  const { front, back, reading } = Object.fromEntries(new FormData(form));
+  const required = [$('front'), $('back')];
+  if (!requireFilled(required)) return;
+  const front = $('front').value;
   try {
-    await call('AddCard', front, back, reading);
-    form.reset();
-    form.elements.front.focus();
-    showMessage(`Added "${front.trim()}".`);
-    refreshCount();
+    await call('AddCard', front, $('back').value, $('reading').value);
+    toast(`Added "${front.trim()}".`);
+    $('add-form').reset();
+    $('front').focus();
     refreshDecks();
   } catch (err) {
-    showError('AddCard', err);
+    if (errorCode(err) === 'empty_fields') requireFilled(required);
+    else showError('AddCard', err);
   }
 });
 
@@ -298,8 +391,7 @@ $('import').addEventListener('click', async () => {
     const parts = [`Imported ${plural(report.added, 'word')}`];
     if (report.duplicates) parts.push(`${report.duplicates} already in deck`);
     if (report.empty) parts.push(`${plural(report.empty, 'row')} missing word or meaning`);
-    showMessage(parts.join(' · '), false, 5000);
-    refreshCount();
+    toast(parts.join(' · '), 4000);
     refreshDecks();
   } catch (err) {
     showError('ImportFile', err);
@@ -307,36 +399,52 @@ $('import').addEventListener('click', async () => {
 });
 
 let allCards = [];
+let listFilter = 'all';
 let editingId = null;
 
-const loadWords = async () => {
+const loadList = async () => {
   try {
     allCards = await call('ListCards');
   } catch (err) {
-    showError('ListCards', err);
     allCards = [];
+    showError('ListCards', err);
   }
-  renderWords();
+  renderChips();
+  renderList();
+};
+
+const renderChips = () => {
+  $('chips').replaceChildren(
+    ...['all', 'new', 'learning', 'known'].map((status) => {
+      const n = status === 'all' ? allCards.length : allCards.filter((c) => c.status === status).length;
+      const btn = el('button', status === listFilter ? 'active' : '', status === 'all' ? 'All' : FilterNames[status]);
+      if (status !== 'all') btn.dataset.status = status;
+      btn.append(el('span', 'n', String(n)));
+      btn.addEventListener('click', () => {
+        listFilter = status;
+        renderChips();
+        renderList();
+      });
+      return btn;
+    })
+  );
 };
 
 const norm = (s) => s.normalize('NFC').toLocaleLowerCase();
 
-const daysUntil = (iso) => {
-  const [y, m, d] = iso.split('-').map(Number);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  return Math.round((new Date(y, m - 1, d) - today) / 86_400_000);
-};
-
-const renderWords = () => {
+const renderList = () => {
   const q = norm($('search').value.trim());
   const matches = allCards.filter(
-    (c) => !q || [c.front, c.back, c.reading].some((s) => norm(s).includes(q))
+    (c) =>
+      (listFilter === 'all' || c.status === listFilter) &&
+      (!q || [c.front, c.back, c.reading].some((s) => norm(s).includes(q)))
   );
 
   const rows = matches.map((card) => (card.id === editingId ? editRow(card) : wordRow(card)));
   if (!matches.length) {
-    rows.push(el('li', 'meta', q ? 'No words match your search.' : 'No words in this deck yet.'));
+    rows.push(
+      el('li', 'empty', q || listFilter !== 'all' ? 'No words match.' : 'No words in this deck yet.')
+    );
   }
   $('card-list').replaceChildren(...rows);
 };
@@ -346,63 +454,77 @@ const wordRow = (card) => {
   li.title = 'Click to edit';
   li.addEventListener('click', () => {
     editingId = card.id;
-    renderWords();
+    renderList();
   });
+
+  const dot = el('span', 'dot');
+  dot.dataset.status = card.status;
+  dot.title = FilterNames[card.status];
 
   const words = el('div', 'words');
   const front = el('div', '', card.front);
   front.dir = 'auto';
-  if (card.reading) front.append(el('span', 'meta', ` ${card.reading}`));
-  const back = el('div', 'meta', card.back);
+  if (card.reading) front.append(el('span', 'rd', card.reading));
+  const back = el('div', 'meaning', card.back);
   back.dir = 'auto';
   words.append(front, back);
 
   const days = daysUntil(card.due);
-  const due = el('span', `meta status-${card.status}`, days <= 0 ? 'due' : relativeDays(days));
-  due.title = card.status;
+  const due = el('span', 'due', days <= 0 ? 'due' : relativeDays(days));
 
-  const del = el('button', 'danger', 'Delete');
-  confirmClick(del, async () => {
-    try {
-      await call('DeleteCard', card.id);
-      showMessage(`Deleted "${card.front}".`);
-    } catch (err) {
-      showError('DeleteCard', err);
-    }
-    loadWords();
-    refreshDecks();
-  });
+  const del = el('button', 'del');
+  del.innerHTML = ICON_X;
+  del.title = 'Delete word';
+  del.setAttribute('aria-label', del.title);
+  confirmClick(
+    del,
+    async () => {
+      try {
+        await call('DeleteCard', card.id);
+        toast(`Deleted "${card.front}".`);
+        loadList();
+        refreshDecks();
+      } catch (err) {
+        showError('DeleteCard', err);
+      }
+    },
+    'Click again to delete this word.'
+  );
 
-  li.append(words, due, del);
+  li.append(dot, words, due, del);
   return li;
 };
 
 const editRow = (card) => {
   const li = el('li', 'editing');
-  const form = el('form');
-  const field = (name, value, placeholder) => {
-    const input = el('input');
-    Object.assign(input, { name, value, placeholder, dir: 'auto', autocomplete: 'off' });
+  const form = el('form', 'edit-form');
+
+  const field = (value, placeholder) => {
+    const input = el('input', 'glass');
+    Object.assign(input, { value, placeholder, dir: 'auto', autocomplete: 'off' });
     return input;
   };
-  const cancel = el('button', '', 'Cancel');
+  const front = field(card.front, 'Word');
+  const reading = field(card.reading, 'Reading');
+  const back = field(card.back, 'Meaning');
+
+  const cancel = el('button', 'mini ghost', 'Cancel');
   cancel.type = 'button';
-  const save = el('button', '', 'Save');
+  const save = el('button', 'mini', 'Save');
   save.type = 'submit';
-  const actions = el('div', 'row');
+
+  const row = el('div', 'row');
+  row.append(front, reading);
+  const actions = el('div', 'actions');
   actions.append(cancel, save);
-  form.append(
-    field('front', card.front, 'Word'),
-    field('reading', card.reading, 'Reading (optional)'),
-    field('back', card.back, 'Meaning'),
-    actions
-  );
+  form.append(row, back, actions);
   li.append(form);
 
   const close = () => {
     editingId = null;
-    renderWords();
+    renderList();
   };
+
   cancel.addEventListener('click', close);
   form.addEventListener('keydown', (e) => {
     if (isComposing(e)) {
@@ -416,27 +538,94 @@ const editRow = (card) => {
   });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const { front, back, reading } = Object.fromEntries(new FormData(form));
+    if (!requireFilled([front, back])) return;
+    const values = [front.value.trim(), back.value.trim(), reading.value.trim()];
     try {
-      await call('UpdateCard', card.id, front, back, reading);
-      showMessage(`Saved "${front.trim()}".`);
+      await call('UpdateCard', card.id, ...values);
+      const inSession = session.queue.find((c) => c.id === card.id);
+      if (inSession) [inSession.front, inSession.back, inSession.reading] = values;
+      toast(`Saved "${values[0]}".`);
       editingId = null;
-      loadWords();
+      loadList();
     } catch (err) {
       showError('UpdateCard', err);
     }
   });
 
-  requestAnimationFrame(() => form.elements.front.focus());
+  requestAnimationFrame(() => {
+    front.focus();
+    front.select();
+  });
   return li;
 };
 
-$('search').addEventListener('input', renderWords);
+$('search').addEventListener('input', renderList);
+
+let appInfo = { version: '', platform: '', canInstall: false };
+
+const loadAppInfo = async () => {
+  try {
+    appInfo = await callSystem('AppInfo');
+  } catch (err) {
+    showError('AppInfo', err);
+    return;
+  }
+  $('install-app').classList.toggle('hidden', !appInfo.canInstall);
+  $('version').textContent = `Frost Flashcard ${appInfo.version}`;
+  const extra = {
+    darwin: 'The app is then removed from your Mac.',
+    windows: 'The app is then removed from your PC.',
+  }[appInfo.platform];
+  $('uninstall-help').textContent = ['Uninstall deletes all your decks and words.', extra]
+    .filter(Boolean)
+    .join(' ');
+};
+
+$('export').addEventListener('click', async () => {
+  try {
+    const report = await call('ExportCSV', 'Export deck as CSV');
+    if (report) toast(`Exported ${plural(report.count, 'card')}.`);
+  } catch (err) {
+    showError('ExportCSV', err);
+  }
+});
+
+$('install-app').addEventListener('click', async () => {
+  try {
+    await callSystem('InstallApp');
+  } catch (err) {
+    showError('InstallApp', err);
+  }
+});
+
+$('uninstall').addEventListener('click', async () => {
+  const sure = await confirmDialog({
+    title: 'Uninstall Frost Flashcard?',
+    text: 'All your decks and words will be deleted. This cannot be undone. Export a deck to CSV first if you want to keep it.',
+    ok: 'Uninstall',
+  });
+  if (!sure) return;
+  try {
+    await callSystem('Uninstall');
+  } catch (err) {
+    showError('Uninstall', err);
+  }
+});
+
+const refreshAll = async () => {
+  await refreshDecks();
+  await startSession();
+  if (currentView() === 'list') loadList();
+};
+
+onEvent('popup-shown', refreshAll);
 
 onEvent('navigate', async (view) => {
-  await refreshDecks();
+  await refreshAll();
   showView(view === 'add' ? 'add' : 'review');
 });
 
-await refreshDecks();
-showView('review');
+applyAppearance(prefs.get('appearance', 'system'));
+applyReadingMode(prefs.get('reading', 'answer'));
+renderFilterOptions();
+await refreshAll();

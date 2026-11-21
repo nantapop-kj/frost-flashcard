@@ -5,6 +5,7 @@ go 1.27.4
 require (
 	github.com/wailsapp/wails/v3 v3.1.0
 	github.com/xuri/excelize/v2 v2.11.1
+	golang.org/x/sys v0.49.0
 )
 
 require (
@@ -19,7 +20,6 @@ require (
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/net v0.62.0 // indirect
-	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/term v0.47.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 )

@@ -35,11 +35,12 @@ func toError(err error, fallback string) error {
 }
 
 type Service struct {
-	mu     sync.Mutex
-	lib    *model.Library
-	path   string
-	picker FilePicker
-	today  func() model.Date
+	mu          sync.Mutex
+	lib         *model.Library
+	path        string
+	picker      FilePicker
+	today       func() model.Date
+	uninstalled bool
 }
 
 func New(lib *model.Library, path string, picker FilePicker) *Service {
@@ -263,11 +264,8 @@ func (s *Service) ExportCSV(title string) (*dto.ExportReport, error) {
 	deck := s.lib.ActiveDeck()
 	count := len(deck.Cards)
 	var buf bytes.Buffer
-	err = exporter.WriteCSV(&buf, deck)
+	_ = exporter.WriteCSV(&buf, deck)
 	s.mu.Unlock()
-	if err != nil {
-		return nil, toError(err, dto.CodeWriteFailed)
-	}
 
 	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
 		return nil, toError(err, dto.CodeWriteFailed)
@@ -307,7 +305,22 @@ func (s *Service) change(fn func(lib *model.Library) error) error {
 	return nil
 }
 
+func (s *Service) stopSaving() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.uninstalled = true
+}
+
+func (s *Service) resumeSaving() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.uninstalled = false
+}
+
 func (s *Service) save() error {
+	if s.uninstalled {
+		return &dto.Error{Code: dto.CodeSaveFailed, Detail: errUninstalled.Error()}
+	}
 	if err := storage.SaveLibrary(s.lib, s.path); err != nil {
 		return &dto.Error{Code: dto.CodeSaveFailed, Detail: "changes were not saved: " + err.Error()}
 	}
