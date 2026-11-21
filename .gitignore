@@ -1,10 +1,8 @@
-# ---------- Build output ----------
 /bin/
 /build/bin/
 /build/**/*.app
-/build/**/*.syso
+*.syso
 
-# ---------- Go ----------
 *.exe
 *.exe~
 *.dll
@@ -17,7 +15,6 @@ coverage.*
 go.work
 go.work.sum
 
-# ---------- Frontend (for when you add npm/vite) ----------
 node_modules/
 frontend/dist/
 frontend/.vite/
@@ -25,22 +22,18 @@ npm-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# ---------- Env / secrets ----------
 .env
 .env.*
 !.env.example
 
-# ---------- OS ----------
 .DS_Store
 Thumbs.db
 
-# ---------- IDE ----------
 .idea/
 .vscode/*
 !.vscode/extensions.json
 *.swp
 *~
 
-# ---------- Misc ----------
 *.log
 tmp/

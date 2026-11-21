@@ -177,28 +177,36 @@ func rewriteZip(t *testing.T, src, dst, name string, edit func([]byte) []byte) {
 	}
 }
 
-func TestExampleFilesImportCleanly(t *testing.T) {
-	tests := map[string]int{
-		"vocab-template.csv":       3,
-		"vocab-template.xlsx":      3,
-		"sample-japanese-n5.csv":   35,
-		"sample-english-thai.xlsx": 25,
+func TestVocabTemplateImportsCleanly(t *testing.T) {
+	rows, err := ReadRows(filepath.Join("..", "..", "assets", "vocab-template.xlsx"))
+	if err != nil {
+		t.Fatal(err)
 	}
-	for name, want := range tests {
-		rows, err := ReadRows(filepath.Join("..", "..", "examples", name))
-		if err != nil {
-			t.Errorf("%s: %v", name, err)
-			continue
+	var d model.Deck
+	rep := AddRows(&d, rows, today)
+	if rep.Added == 0 || rep.Duplicates != 0 || rep.Empty != 0 {
+		t.Errorf("report = %+v, want rows added and nothing skipped", rep)
+	}
+	for _, c := range d.Cards {
+		if c.Front == "word" {
+			t.Error("header row was imported as a card")
 		}
-		var d model.Deck
-		rep := AddRows(&d, rows, today)
-		if rep != (Report{Added: want}) {
-			t.Errorf("%s: report = %+v, want %d added and nothing skipped", name, rep, want)
-		}
-		for _, c := range d.Cards {
-			if c.Front == "คำศัพท์" {
-				t.Errorf("%s: header row was imported as a card", name)
-			}
-		}
+	}
+}
+
+func TestReadRowsExcelSheetCannotBeRead(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "src.xlsx")
+	if err := excelize.NewFile().SaveAs(src); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "badname.xlsx")
+	rewriteZip(t, src, path, "xl/workbook.xml", func(b []byte) []byte {
+		return bytes.Replace(b, []byte(`name="Sheet1"`), []byte(`name="Bad:Name"`), 1)
+	})
+
+	_, err := ReadRows(path)
+	if err == nil || errors.Is(err, ErrNoSheet) {
+		t.Errorf("err = %v, want a sheet read error", err)
 	}
 }

@@ -2,12 +2,12 @@ package helper
 
 import "github.com/wailsapp/wails/v3/pkg/application"
 
-type Dialogs struct {
+type Desktop struct {
 	App  *application.App
 	Tray *application.SystemTray
 }
 
-func (d *Dialogs) PickImportFile(title string) (string, error) {
+func (d *Desktop) PickImportFile(title string) (string, error) {
 	defer d.reopen()
 	return d.App.Dialog.OpenFile().
 		SetTitle(title).
@@ -16,7 +16,7 @@ func (d *Dialogs) PickImportFile(title string) (string, error) {
 		PromptForSingleSelection()
 }
 
-func (d *Dialogs) PickExportFile(title, filename string) (string, error) {
+func (d *Desktop) PickExportFile(title, filename string) (string, error) {
 	defer d.reopen()
 	return d.App.Dialog.SaveFile().
 		SetMessage(title).
@@ -25,7 +25,15 @@ func (d *Dialogs) PickExportFile(title, filename string) (string, error) {
 		PromptForSingleSelection()
 }
 
-func (d *Dialogs) reopen() {
+func (d *Desktop) Quit() {
+	d.App.Quit()
+}
+
+func (d *Desktop) DisableAutostart() error {
+	return d.App.Autostart.Disable()
+}
+
+func (d *Desktop) reopen() {
 	if d.Tray != nil {
 		d.Tray.ShowWindow()
 	}

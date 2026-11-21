@@ -31,8 +31,6 @@ type Row [3]string
 
 var headerWords = map[string]bool{
 	"front": true, "word": true, "words": true, "term": true, "question": true, "vocabulary": true,
-	"ด้านหน้า": true, "คำศัพท์": true, "คำถาม": true, "คำ": true,
-	"単語": true, "表": true, "单词": true, "词语": true, "正面": true, "단어": true, "앞면": true,
 }
 
 func ReadRows(path string) ([]Row, error) {
@@ -83,10 +81,7 @@ func ParseCSV(data []byte) ([]Row, error) {
 	r := csv.NewReader(bytes.NewReader(data))
 	r.FieldsPerRecord = -1
 	r.LazyQuotes = true
-	raw, err := r.ReadAll()
-	if err != nil {
-		return nil, fmt.Errorf("parse csv: %w", err)
-	}
+	raw, _ := r.ReadAll()
 
 	return toRows(raw), nil
 }

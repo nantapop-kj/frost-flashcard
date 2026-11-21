@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -130,4 +131,101 @@ func TestOpenDataFolderErrors(t *testing.T) {
 	if err := OpenDataFolder(t.TempDir(), func(string) error { return want }); !errors.Is(err, want) {
 		t.Errorf("err = %v, want %v", err, want)
 	}
+}
+
+type fakeHider struct{ hidden int }
+
+func (f *fakeHider) Hide() application.Window { f.hidden++; return nil }
+
+func TestHideOnCloseHidesAndCancels(t *testing.T) {
+	w := &fakeHider{}
+	e := application.NewWindowEvent()
+	hideOnClose(w)(e)
+	if w.hidden != 1 || !e.IsCancelled() {
+		t.Errorf("hidden=%d cancelled=%v, want 1 and true", w.hidden, e.IsCancelled())
+	}
+}
+
+type emitted struct {
+	name string
+	data []any
+}
+
+type fakeEmitter struct{ events []emitted }
+
+func (f *fakeEmitter) emit(name string, data ...any) bool {
+	f.events = append(f.events, emitted{name, data})
+	return false
+}
+
+func TestEmitOnShowSendsPopupShown(t *testing.T) {
+	f := &fakeEmitter{}
+	emitOnShow(f.emit)(application.NewWindowEvent())
+	if len(f.events) != 1 || f.events[0].name != PopupShownEvent {
+		t.Errorf("events = %+v, want one %q", f.events, PopupShownEvent)
+	}
+}
+
+type fakeChecker struct {
+	enabled bool
+	err     error
+}
+
+func (f fakeChecker) IsEnabled() (bool, error) { return f.enabled, f.err }
+
+func TestAutostartEnabled(t *testing.T) {
+	if !autostartEnabled(fakeChecker{enabled: true}) {
+		t.Error("want enabled")
+	}
+	if autostartEnabled(fakeChecker{err: errors.New("denied")}) {
+		t.Error("an error should read as disabled")
+	}
+}
+
+func TestTrayActionsOpenViewNavigatesThenShows(t *testing.T) {
+	f := &fakeEmitter{}
+	var order []string
+	a := &trayActions{
+		emit: func(name string, data ...any) bool {
+			order = append(order, "emit")
+			return f.emit(name, data...)
+		},
+		show: func() { order = append(order, "show") },
+	}
+
+	a.openView("review")()
+	if len(f.events) != 1 || f.events[0].name != NavigateEvent || !slices.Equal(f.events[0].data, []any{"review"}) {
+		t.Errorf("events = %+v, want navigate to review", f.events)
+	}
+	if !slices.Equal(order, []string{"emit", "show"}) {
+		t.Errorf("order = %v, want emit then show", order)
+	}
+}
+
+func TestTrayActionsToggleAutostart(t *testing.T) {
+	a := &trayActions{autostart: &fakeAutostart{}, autostartItem: &fakeCheckItem{checked: true}}
+	a.toggleAutostart()
+	if a.autostart.(*fakeAutostart).enabled != 1 {
+		t.Errorf("autostart = %+v, want enabled once", a.autostart)
+	}
+
+	item := &fakeCheckItem{checked: true}
+	a = &trayActions{autostart: &fakeAutostart{err: errors.New("denied")}, autostartItem: item}
+	a.toggleAutostart()
+	if item.checked {
+		t.Error("checkbox should revert when autostart cannot be changed")
+	}
+}
+
+func TestTrayActionsOpenDataFolder(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "data")
+	var opened string
+	a := &trayActions{dataDir: dir, openFile: func(p string) error { opened = p; return nil }}
+	a.openDataFolder()
+	if opened != dir {
+		t.Errorf("opened %q, want %q", opened, dir)
+	}
+
+	a.openFile = func(string) error { return errors.New("no finder") }
+	a.openDataFolder()
 }
