@@ -28,7 +28,8 @@ func SetupTray(app *application.App, dataDir string) *application.SystemTray {
 		AlwaysOnTop:     true,
 		DisableResize:   true,
 		HideOnFocusLost: true,
-		BackgroundType:  application.BackgroundTypeTranslucent,
+		CloseButtonState: application.ButtonHidden,
+		BackgroundType:   application.BackgroundTypeTranslucent,
 		Mac: application.MacWindow{
 			Backdrop: application.MacBackdropLiquidGlass,
 			LiquidGlass: application.MacLiquidGlass{

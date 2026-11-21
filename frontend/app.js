@@ -1,4 +1,4 @@
-import { callService as call, callSystem, errorCode, onEvent } from './lib/api.js';
+import { callService as call, callSystem, errorCode, hideWindow, onEvent } from './lib/api.js';
 import {
   $,
   confirmClick,
@@ -579,6 +579,10 @@ const loadAppInfo = async () => {
   $('uninstall-help').textContent = ['Uninstall deletes all your decks and words.', extra]
     .filter(Boolean)
     .join(' ');
+  if (appInfo.platform === 'windows') {
+    $('quit-help').textContent =
+      'To quit, right-click the tray icon (under ^ on the taskbar) and choose Quit.';
+  }
 };
 
 $('export').addEventListener('click', async () => {
@@ -625,6 +629,8 @@ onEvent('navigate', async (view) => {
   showView(view === 'add' ? 'add' : 'review');
 });
 
+if (/Windows/.test(navigator.userAgent)) document.documentElement.dataset.platform = 'windows';
+$('close-window').addEventListener('click', () => hideWindow());
 applyAppearance(prefs.get('appearance', 'system'));
 applyReadingMode(prefs.get('reading', 'answer'));
 renderFilterOptions();

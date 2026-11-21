@@ -1,7 +1,7 @@
 VERSION ?= dev
 export VERSION
 
-.PHONY: run build test check app dmg windows icons tidy clean
+.PHONY: run build test check app dmg windows windows-installer icons tidy clean
 
 run:
 	go run -tags private_mac_apis ./cmd
@@ -25,6 +25,9 @@ dmg:
 
 windows:
 	./scripts/build-windows.sh
+
+windows-installer:
+	./scripts/build-windows.sh --installer
 
 icons:
 	./scripts/make-icons.sh

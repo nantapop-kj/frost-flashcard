@@ -33,6 +33,13 @@
         </svg>
       </button>
 
+      <button id="close-window" class="glass round close-window" title="Close" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"
+          stroke-linecap="round">
+          <path d="M6 6l12 12M18 6 6 18" />
+        </svg>
+      </button>
+
       <div id="deck-menu" class="glass menu hidden" role="menu">
         <ul id="deck-options"></ul>
         <form id="new-deck-form" class="new-deck">
@@ -157,7 +164,7 @@
         <button id="uninstall" class="danger">Uninstall…</button>
       </div>
       <span id="uninstall-help" class="meta small"></span>
-      <span class="meta small">To quit, right-click the menu bar icon and choose Quit.</span>
+      <span id="quit-help" class="meta small">To quit, right-click the menu bar icon and choose Quit.</span>
       <span id="version" class="meta small center"></span>
     </div>
   </section>
