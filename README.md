@@ -184,9 +184,6 @@ frost-flashcard/
 
 - Not signed with a paid certificate (see [🔏 Code Signing](#-code-signing)).
 - Launch at Login is tied to the app ID. After the change from `dev.frostflashcard.app`, turn it on again.
-- The glass effect follows the system appearance, not the theme picked in Settings.
-- Run only one copy at a time, or the two copies overwrite each other's saves.
-- English UI only.
 
 ---
 
